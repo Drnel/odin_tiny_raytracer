@@ -4,6 +4,7 @@ import "core:math"
 
 vec2 :: [2]f32
 vec3 :: [3]f32
+vec4 :: [4]f32
 
 normalize_vec3 :: proc(vec: vec3) -> vec3 {
     return vec * (1 / norm_vec3(vec))

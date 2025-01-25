@@ -7,12 +7,13 @@ import "core:math"
 main :: proc() {
     spheres := make([dynamic]Sphere)
     defer delete(spheres)
-    ivory := Material{vec2{0.6, 0.3}, vec3{0.4, 0.4, 0.3}, 50}
-    red_rubber := Material{vec2{0.9, 0.1}, vec3{0.3, 0.1, 0.1}, 10}
+    ivory := Material{vec3{0.6, 0.3, 0.1}, vec3{0.4, 0.4, 0.3}, 50}
+    red_rubber := Material{vec3{0.9, 0.1, 0}, vec3{0.3, 0.1, 0.1}, 10}
+    mirror := Material{vec3{0, 10, 0.8}, vec3{1, 1, 1}, 1425}
     append(&spheres, Sphere{vec3{-3, 0, -16} , 2, ivory})
-    append(&spheres, Sphere{vec3{-1, -1.5, -12}, 2, red_rubber})
+    append(&spheres, Sphere{vec3{-1, -1.5, -12}, 2, mirror})
     append(&spheres, Sphere{vec3{1.5, -0.5, -18}, 3, red_rubber})
-    append(&spheres, Sphere{vec3{7, 5, -18}, 4, ivory})
+    append(&spheres, Sphere{vec3{7, 5, -18}, 4, mirror})
 
     lights := make([dynamic]Light)
     defer delete(lights)
@@ -24,7 +25,7 @@ main :: proc() {
 }
 
 Material :: struct {
-    albedo: vec2,
+    albedo: vec3,
     diffuse_color: vec3,
     specular_exponent: f32,
 }
@@ -73,16 +74,19 @@ render :: proc(spheres: []Sphere, lights: []Light) {
 }
 
 
-cast_ray :: proc(spheres: []Sphere, orig: vec3, dir: vec3, lights: []Light) -> vec3 {
+cast_ray :: proc(spheres: []Sphere, orig: vec3, dir: vec3, lights: []Light, depth: u32 = 0) -> vec3 {
     point: vec3
     N: vec3
     material: Material
-    if !scene_intersect(spheres, orig, dir, &point, &N, &material) {
+    if depth > 4 || !scene_intersect(spheres, orig, dir, &point, &N, &material) {
         return vec3{0.2, 0.7, 0.8} // background color
     }
+    reflect_dir := normalize_vec3(reflect(dir, N))
+    reflect_orig := dot_vec3(reflect_dir, N) < 0 ? point - (N * 1e-3) : point + (N * 1e-3)
+    reflect_color := cast_ray(spheres, reflect_orig, reflect_dir, lights, depth + 1)
+
     diffuse_light_intensity: f32 = 0
-    specular_light_intensity: f32 = 0
-    
+    specular_light_intensity: f32 = 0   
     for light in lights {
         light_dir := normalize_vec3(light.position - point)
         light_distance := norm_vec3(light.position - point)
@@ -99,7 +103,8 @@ cast_ray :: proc(spheres: []Sphere, orig: vec3, dir: vec3, lights: []Light) -> v
             light.intensity
     }
     return  (material.diffuse_color * diffuse_light_intensity * material.albedo[0]) +
-            (vec3{1, 1, 1} * specular_light_intensity * material.albedo[1]) 
+            (vec3{1, 1, 1} * specular_light_intensity * material.albedo[1]) +
+            (reflect_color * material.albedo[2])
 }
 
 scene_intersect :: proc(
