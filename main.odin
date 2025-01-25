@@ -7,8 +7,8 @@ import "core:math"
 main :: proc() {
     spheres := make([dynamic]Sphere)
     defer delete(spheres)
-    ivory := Material{vec3f{0.4, 0.4, 0.3}}
-    red_rubber := Material{vec3f{0.3, 0.1, 0.1}}
+    ivory := Material{vec2f{0.6, 0.3}, vec3f{0.4, 0.4, 0.3}, 50}
+    red_rubber := Material{vec2f{0.9, 0.1}, vec3f{0.3, 0.1, 0.1}, 10}
     append(&spheres, Sphere{vec3f{-3, 0, -16} , 2, ivory})
     append(&spheres, Sphere{vec3f{-1, -1.5, -12}, 2, red_rubber})
     append(&spheres, Sphere{vec3f{1.5, -0.5, -18}, 3, red_rubber})
@@ -17,12 +17,16 @@ main :: proc() {
     lights := make([dynamic]Light)
     defer delete(lights)
     append(&lights, Light{vec3f{-20, 20, 20}, 1.5})
+    append(&lights, Light{vec3f{30, 50, -25}, 1.8})
+    append(&lights, Light{vec3f{30, 20, 30}, 1.7})
 
     render(spheres[:], lights[:])
 }
 
 Material :: struct {
-    diffuse_color: vec3f
+    albedo: vec2f,
+    diffuse_color: vec3f,
+    specular_exponent: f32,
 }
 
 Sphere :: struct {
@@ -58,6 +62,8 @@ render :: proc(spheres: []Sphere, lights: []Light) {
 
     data := make([]u8, 3 * width * height)
     for i in 0..<len(frame_buffer) {
+        max_v := max(frame_buffer[i][0], max(frame_buffer[i][1], frame_buffer[i][2]))
+        if max_v > 1 {frame_buffer[i] = frame_buffer[i] * (1/max_v)}
         data[i * 3] = u8(255 * frame_buffer[i].r)
         data[(i * 3) + 1] = u8(255 * frame_buffer[i].g)
         data[(i * 3) + 2] = u8(255 * frame_buffer[i].b)
@@ -75,11 +81,16 @@ cast_ray :: proc(spheres: []Sphere, orig: vec3f, dir: vec3f, lights: []Light) ->
         return vec3f{0.2, 0.7, 0.8} // background color
     }
     diffuse_light_intensity: f32 = 0
+    specular_light_intensity: f32 = 0
     for light in lights {
         light_dir := normalize_vec3f(light.position - point)
         diffuse_light_intensity += light.intensity * max(0, dot_vec3f(light_dir, N))
+        specular_light_intensity += 
+            math.pow_f32(max(0, -dot_vec3f(reflect(-light_dir, N), dir)), material.specular_exponent) * 
+            light.intensity
     }
-    return material.diffuse_color * diffuse_light_intensity
+    return  (material.diffuse_color * diffuse_light_intensity * material.albedo[0]) +
+            (vec3f{1, 1, 1} * specular_light_intensity * material.albedo[1]) 
 }
 
 scene_intersect :: proc(
@@ -109,4 +120,8 @@ sphere_ray_intersect :: proc(sphere: ^Sphere, orig: vec3f, dir: vec3f, t0: ^f32)
     if t0^ < 0 { t0^ = t1}
     if t0^ < 0 {return false}
     return true
+}
+
+reflect :: proc(I: vec3f, N: vec3f) -> vec3f {
+    return I - (N * 2 * dot_vec3f(I, N))
 }
