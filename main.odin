@@ -5,16 +5,30 @@ import "core:fmt"
 import "core:math"
 
 main :: proc() {
-    sphere := Sphere{vec3f{-3, 0, -16}, 2}
-    render(sphere)
+    spheres := make([dynamic]Sphere)
+    defer delete(spheres)
+    ivory := Material{vec3f{0.4, 0.4, 0.3}}
+    red_rubber := Material{vec3f{0.3, 0.1, 0.1}}
+
+    append(&spheres, Sphere{vec3f{-3, 0, -16} , 2, ivory})
+    append(&spheres, Sphere{vec3f{-1, -1.5, -12}, 2, red_rubber})
+    append(&spheres, Sphere{vec3f{1.5, -0.5, -18}, 3, red_rubber})
+    append(&spheres, Sphere{vec3f{7, -5, -18}, 4, ivory})
+
+    render(spheres[:])
+}
+
+Material :: struct {
+    diffuse_color: vec3f
 }
 
 Sphere :: struct {
     center: vec3f,
     radius: f32,
+    material: Material,
 }
 
-render :: proc(sphere: Sphere) {
+render :: proc(spheres: []Sphere) {
     width :: 1024
     height :: 768
     fov :: math.PI / 3
@@ -26,7 +40,7 @@ render :: proc(sphere: Sphere) {
             x: f32 = (2 * ((f32(i) + 0.5)/width) - 1) * math.tan_f32(fov/2) * width/height
             y: f32 = -(2 * ((f32(j)+ 0.5)/height) - 1) * math.tan_f32(fov/2)
             dir := normalize_vec3f(vec3f{x, y, -1})
-            frame_buffer[i + (j * width)] = cast_ray(sphere, vec3f{0, 0, 0}, dir)
+            frame_buffer[i + (j * width)] = cast_ray(spheres, vec3f{0, 0, 0}, dir)
         }
     }
  
@@ -44,22 +58,42 @@ render :: proc(sphere: Sphere) {
     os.write(file, data)
 }
 
-sphere_ray_intersect :: proc(sphere: Sphere, orig: vec3f, dir: vec3f) -> bool {
+
+cast_ray :: proc(spheres: []Sphere, orig: vec3f, dir: vec3f) -> vec3f {
+    point: vec3f
+    N: vec3f
+    material: Material
+    if !scene_intersect(spheres, orig, dir, &point, &N, &material) {
+        return vec3f{0.2, 0.7, 0.8} // background color
+    }
+    return material.diffuse_color
+}
+
+scene_intersect :: proc(
+    spheres: []Sphere, orig, dir: vec3f, hit, N: ^vec3f, material: ^Material,
+) -> bool {
+    sphere_dist: f32 = math.F32_MAX
+    for &sphere in spheres {
+        dist_i: f32
+        if sphere_ray_intersect(&sphere, orig, dir, &dist_i) && (dist_i < sphere_dist) {
+            sphere_dist = dist_i
+            hit^ = orig + (dir * dist_i)
+            N^ = normalize_vec3f(hit^ - sphere.center)
+            material^ = sphere.material
+        }
+    }
+    return sphere_dist < 1000
+}
+
+sphere_ray_intersect :: proc(sphere: ^Sphere, orig: vec3f, dir: vec3f, t0: ^f32) -> bool {
     L := sphere.center - orig
     tca := dot_vec3f(L, dir)
     d2 := dot_vec3f(L, L) - (tca *tca)
     if d2 > (sphere.radius * sphere.radius) { return false}
     thc := math.sqrt_f32((sphere.radius * sphere.radius) - d2)
-    t0 := tca - thc
+    t0^ = tca - thc
     t1 := tca + thc
-    if t0 < 0 { t0 = t1}
-    if t0 < 0 {return false}
+    if t0^ < 0 { t0^ = t1}
+    if t0^ < 0 {return false}
     return true
-}
-
-cast_ray :: proc(sphere: Sphere, orig: vec3f, dir: vec3f) -> vec3f {
-    if !sphere_ray_intersect(sphere, orig, dir) {
-        return vec3f{0.2, 0.7, 0.8}
-    }
-    return vec3f{0.4, 0.4, 0.3}
 }
