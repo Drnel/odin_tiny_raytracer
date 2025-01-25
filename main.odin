@@ -85,12 +85,6 @@ cast_ray :: proc(spheres: []Sphere, orig: vec3, dir: vec3, lights: []Light) -> v
     
     for light in lights {
         light_dir := normalize_vec3(light.position - point)
-        // float light_distance = (lights[i].position - point).norm();
-        // Vec3f shadow_orig = light_dir*N < 0 ? point - N*1e-3 : point + N*1e-3; // checking if the point lies in the shadow of the lights[i]
-        // Vec3f shadow_pt, shadow_N;
-        // Material tmpmaterial;
-        // if (scene_intersect(shadow_orig, light_dir, spheres, shadow_pt, shadow_N, tmpmaterial) && (shadow_pt-shadow_orig).norm() < light_distance)
-            // continue;
         light_distance := norm_vec3(light.position - point)
         sh_orig := dot_vec3(light_dir, N) < 0 ? N * 1e-3 : point + (N * 1e-3)
         sh_point, sh_N: vec3
